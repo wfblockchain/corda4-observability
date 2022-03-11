@@ -1,0 +1,49 @@
+<source>
+    @type forward
+    port 24224
+    bind 0.0.0.0
+</source>
+<source>
+  @type tail
+  path /var/log/partya/node-partya_json.log,/var/log/partyb/node-partyb_json.log,/var/log/notary/node-notary_json.log   
+  pos_file /var/log/fluentd/logs.log.pos
+  time_format "%Y-%m-%dT%H:%M:%S.%L%Z"
+  tag node.*
+  read_from_head true
+  format none
+</source>
+# <match **>
+#     @type file
+#     path /var/log/fluent/node
+#     <buffer time>
+#       timekey_wait 5m
+#       timekey 86400
+#       timekey_use_utc true
+#       path /var/log/fluent/node/logs.*
+#     </buffer>
+#     append true
+#  </match>
+ <match **>
+    @type splunk_hec
+    host  splunkenterprise
+    port  9997
+    token 5ac09517-b2a0-48ed-92b1-a1a3eeaa21c2
+    output_format json
+    enableSSL 0
+    #ssl_version     TLSv1_3
+    <buffer>
+        @type memory
+        flush_mode  interval
+        flush_interval  2
+        flush_thread_count  2
+        overflow_action block
+        retry_forever true
+    </buffer>
+</match>
+#  <match **>
+#     @type splunk_hec
+#     hec_host splunkenterprise
+#     hec_port 9997
+#     hec_token 00000000-0000-0000-0000-000000000000
+#     output_format json
+# </match>
