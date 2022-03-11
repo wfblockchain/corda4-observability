@@ -1,0 +1,207 @@
+version: '3.9'
+
+volumes:
+  opt-splunk-etc:
+  opt-splunk-var:
+
+services:
+  notarydb:
+    image: postgres:latest
+    container_name: notarydb
+    hostname: notarydb
+    environment:
+      POSTGRES_PASSWORD: test
+
+  partyadb:
+    image: postgres:latest
+    container_name: partyadb
+    hostname: partyadb
+    environment:
+      POSTGRES_PASSWORD: test
+  
+  partybdb:
+    image: postgres:latest
+    container_name: partybdb
+    hostname: partybdb
+    environment:
+      POSTGRES_PASSWORD: test
+
+  notary:
+    image: corda/corda-zulu-java1.8-4.8.6:RELEASE
+    container_name: notary
+    hostname: notary
+    ports:
+      - "10002:10201"
+    command: bash -c "java -jar /opt/corda/bin/corda.jar run-migration-scripts -f /etc/corda/node.conf --core-schemas --app-schemas && /opt/corda/bin/run-corda"
+    volumes:
+      - ./notary/node.conf:/etc/corda/node.conf:ro
+      - ./notary/certificates:/opt/corda/certificates:ro
+      - ./notary/persistence.mv.db:/opt/corda/persistence/persistence.mv.db:rw
+      - ./notary/persistence.trace.db:/opt/corda/persistence/persistence.trace.db:rw
+      - ./notary/logs:/opt/corda/logs:rw
+      - ./shared/additional-node-infos:/opt/corda/additional-node-infos:rw
+      - ./shared/drivers:/opt/corda/drivers:ro
+      - ./shared/network-parameters:/opt/corda/network-parameters:rw
+    environment:
+      - "JVM_ARGS=-XX:+HeapDumpOnOutOfMemoryError -Djava.util.logging.config.file=/opt/corda/drivers/jdk_logging.properties -Dlog4j.configurationFile=/opt/corda/drivers/log4j2.xml -cp /opt/corda/drivers/log4j-layout-template-json-2.17.1.jar -javaagent:/opt/corda/drivers/jmx_prometheus_javaagent-0.16.1.jar=8080:/opt/corda/drivers/prom_jmx_exporter.yaml"
+      - NODE_NAME=notary
+    links:
+      - fluentd
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: 0.0.0.0:24224
+        tag: notary
+    depends_on:
+      - notarydb
+    
+
+  partya:
+    image: corda/corda-zulu-java1.8-4.8.6:RELEASE
+    container_name: partya
+    hostname: partya
+    ports:
+      - "10005:10201"
+      - "2222:2222"
+    command: bash -c "java -jar /opt/corda/bin/corda.jar run-migration-scripts -f /etc/corda/node.conf --core-schemas --app-schemas && /opt/corda/bin/run-corda"
+    volumes:
+      - ./partya/node.conf:/etc/corda/node.conf:ro
+      - ./partya/certificates:/opt/corda/certificates:ro
+      - ./partya/persistence.mv.db:/opt/corda/persistence/persistence.mv.db:rw
+      - ./partya/persistence.trace.db:/opt/corda/persistence/persistence.trace.db:rw
+      - ./partya/logs:/opt/corda/logs:rw
+      - ./shared/additional-node-infos:/opt/corda/additional-node-infos:rw
+      - ./shared/cordapps:/opt/corda/cordapps:rw
+      - ./shared/drivers:/opt/corda/drivers:ro
+      - ./shared/network-parameters:/opt/corda/network-parameters:rw
+    environment:
+      - "JVM_ARGS=-XX:+HeapDumpOnOutOfMemoryError -Djava.util.logging.config.file=/opt/corda/drivers/jdk_logging.properties -Dlog4j.configurationFile=/opt/corda/drivers/log4j2.xml -cp /opt/corda/drivers/log4j-layout-template-json-2.17.1.jar -javaagent:/opt/corda/drivers/jmx_prometheus_javaagent-0.16.1.jar=8080:/opt/corda/drivers/prom_jmx_exporter.yaml"
+      - NODE_NAME=partya
+    links:
+      - fluentd
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: 0.0.0.0:24224
+        tag: partya
+    depends_on:
+      - partyadb
+
+  partyb:
+    image: corda/corda-zulu-java1.8-4.8.6:RELEASE
+    container_name: partyb
+    hostname: partyb
+    ports:
+      - "10008:10201"
+      - "3333:2222"
+    command: bash -c "java -jar /opt/corda/bin/corda.jar run-migration-scripts -f /etc/corda/node.conf --core-schemas --app-schemas && /opt/corda/bin/run-corda"
+    volumes:
+      - ./partyb/node.conf:/etc/corda/node.conf:ro
+      - ./partyb/certificates:/opt/corda/certificates:ro
+      - ./partyb/persistence.mv.db:/opt/corda/persistence/persistence.mv.db:rw
+      - ./partyb/persistence.trace.db:/opt/corda/persistence/persistence.trace.db:rw
+      - ./partyb/logs:/opt/corda/logs:rw
+      - ./shared/additional-node-infos:/opt/corda/additional-node-infos:rw
+      - ./shared/cordapps:/opt/corda/cordapps:rw
+      - ./shared/drivers:/opt/corda/drivers:ro
+      - ./shared/network-parameters:/opt/corda/network-parameters:rw
+    environment:
+      - "JVM_ARGS=-XX:+HeapDumpOnOutOfMemoryError -Djava.util.logging.config.file=/opt/corda/drivers/jdk_logging.properties -Dlog4j.configurationFile=/opt/corda/drivers/log4j2.xml -cp /opt/corda/drivers/log4j-layout-template-json-2.17.1.jar -javaagent:/opt/corda/drivers/jmx_prometheus_javaagent-0.16.1.jar=8080:/opt/corda/drivers/prom_jmx_exporter.yaml"
+      - NODE_NAME=partyb
+    links:
+      - fluentd
+    logging:
+      driver: fluentd
+      options:
+        fluentd-address: 0.0.0.0:24224
+        tag: partyb
+    depends_on:
+      - partybdb
+
+  splunkenterprise:
+    #build: .
+    hostname: splunkenterprise
+    image: splunk/splunk:latest
+    environment:
+      SPLUNK_START_ARGS: --accept-license
+      SPLUNK_ENABLE_LISTEN: 9997
+      SPLUNK_ADD: tcp 1514
+      SPLUNK_PASSWORD: password
+    volumes:
+      - opt-splunk-etc:/opt/splunk/etc
+      - opt-splunk-var:/opt/splunk/var
+    ports:
+      - "8000:8000"
+      - "9997:9997"
+      - "8088:8088"
+      - "1514:1514"
+  
+  fluentd:
+    build: ./fluentd
+    hostname: fluentd
+    ports:
+      - '24224:24224'
+    volumes:
+      - ./fluentd/fluent.conf:/fluentd/etc/fluent.conf
+      - ./partya/logs:/var/log/partya:ro
+      - ./partyb/logs:/var/log/partyb:ro
+      - ./notary/logs:/var/log/notary:ro   
+    depends_on:
+      - elasticsearch
+      - splunkenterprise
+
+    #build: ./fluentd
+  elasticsearch:
+    image: elasticsearch:8.0.0
+    hostname: elasticsearch
+    environment:
+      - "ES_JAVA_OPTS: -Xmx256m -Xms256m"
+      - xpack.security.enabled=false
+      - "discovery.type=single-node"
+    # networks:
+    #   - es-net
+    ports:
+      - 9200:9200
+      - 9300:9300
+   
+  kibana:
+    image: kibana:8.0.0
+    container_name: kibana
+    volumes:
+      - ./kibana:/etc/kibana/data
+    ports:
+      - 5601:5601
+    environment:
+      - SERVERNAME=kibana
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      #- ELASTICSEARCH_USERNAME=kibana
+      #- ELASTICSEARCH_PASSWORD=password
+    # networks:
+    #   - es-net
+    depends_on:
+      - elasticsearch
+ 
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - 9090:9090
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    hostname: grafana
+    container_name: grafana
+    image: grafana/grafana:latest
+    ports:
+      - 3000:3000
+    volumes:
+      - ./grafana/data:/var/lib/grafana
+    environment:
+      - "GF_INSTALL_PLUGINS=grafana-clock-panel"
+
+
+      
+      

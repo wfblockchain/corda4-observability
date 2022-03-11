@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 5s
+  external_labels:
+    monitor: "corda-network"
+scrape_configs:
+  - job_name: "notary"
+    static_configs:
+      - targets: ["notary:8080"]
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: "([^:]+):\\d+"
+        target_label: instance
+  - job_name: "nodes"
+    static_configs:
+      - targets: ["partya:8080", "partyb:8080"]
+    relabel_configs:
+      - source_labels: [__address__]
+        regex: "([^:]+):\\d+"
+        target_label: instance
